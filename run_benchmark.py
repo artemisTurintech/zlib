@@ -1,16 +1,19 @@
 """
 Benchmark for the zlib compression library (Python built-in zlib module).
 One unit of work: compress or decompress a single 1 MB buffer.
-Each row in the output is one trial (one repeat of NUMBER calls).
+Each row in the output is one trial; a summary row with mean/stdev is appended.
+
+Usage:
+    python run_benchmark.py [--runs N]
 """
 
 import json
 import math
+import sys
 import timeit
 import zlib
 
 NUMBER = 200   # compress/decompress calls per trial
-REPEAT = 10    # number of trials
 
 DATA_SIZE_MB = 1
 DATA_SIZE = DATA_SIZE_MB * 1024 * 1024
@@ -25,43 +28,68 @@ def _make_data(size: int) -> bytes:
     return bytes(ba)
 
 
+def _mean(values):
+    return sum(values) / len(values)
+
+
+def _stdev(values):
+    m = _mean(values)
+    return math.sqrt(sum((v - m) ** 2 for v in values) / (len(values) - 1))
+
+
 def main():
+    repeat = 10
+    for i, arg in enumerate(sys.argv[1:]):
+        if arg == "--runs" and i + 1 < len(sys.argv[1:]):
+            repeat = int(sys.argv[i + 2])
+
     print(f"Preparing {DATA_SIZE_MB} MB input buffer ...")
     raw = _make_data(DATA_SIZE)
     compressed = zlib.compress(raw)
     compress_ratio = len(compressed) / DATA_SIZE
 
-    print(f"number={NUMBER}  repeat={REPEAT}\n")
+    print(f"number={NUMBER}  runs={repeat}\n")
 
     comp_times = timeit.repeat(
         stmt="zlib.compress(raw)",
         globals={"zlib": zlib, "raw": raw},
         number=NUMBER,
-        repeat=REPEAT,
+        repeat=repeat,
     )
     decomp_times = timeit.repeat(
         stmt="zlib.decompress(compressed)",
         globals={"zlib": zlib, "compressed": compressed},
         number=NUMBER,
-        repeat=REPEAT,
+        repeat=repeat,
     )
 
-    rows = [
+    comp_mbps   = [round(NUMBER * DATA_SIZE_MB / t, 2) for t in comp_times]
+    decomp_mbps = [round(NUMBER * DATA_SIZE_MB / t, 2) for t in decomp_times]
+
+    c_mean, c_std   = _mean(comp_mbps),   _stdev(comp_mbps)
+    d_mean, d_std   = _mean(decomp_mbps), _stdev(decomp_mbps)
+
+    print(f"  runs={repeat}  number={NUMBER}")
+    print(f"  compress   mean={c_mean:.1f} MB/s  stdev={c_std:.1f} MB/s")
+    print(f"  decompress mean={d_mean:.1f} MB/s  stdev={d_std:.1f} MB/s")
+
+    result = [
         {
-            "trial": i + 1,
-            "number": NUMBER,
-            "compress_mbps": round(NUMBER * DATA_SIZE_MB / comp_times[i], 2),
-            "decompress_mbps": round(NUMBER * DATA_SIZE_MB / decomp_times[i], 2),
-            "compress_ratio": round(compress_ratio, 6),
+            "runs":                       repeat,
+            "compress_mbps_mean":         round(c_mean, 2),
+            "compress_mbps_stdev":        round(c_std,  2),
+            "compress_mbps_better_when":  "higher",
+            "decompress_mbps_mean":       round(d_mean, 2),
+            "decompress_mbps_stdev":      round(d_std,  2),
+            "decompress_mbps_better_when":"higher",
+            "compress_ratio_mean":        round(compress_ratio, 6),
+            "compress_ratio_stdev":       0.0,
+            "compress_ratio_better_when": "lower",
         }
-        for i in range(REPEAT)
     ]
 
-    for r in rows:
-        print(f"trial {r['trial']:2d}: compress={r['compress_mbps']:.1f} MB/s  decompress={r['decompress_mbps']:.1f} MB/s  ratio={r['compress_ratio']:.4f}")
-
     with open("artemis_results.json", "w") as f:
-        json.dump(rows, f, indent=2)
+        json.dump(result, f, indent=2)
 
     print("\nResults written to artemis_results.json")
 
