@@ -72,10 +72,15 @@ def main():
     print(f"  runs={repeat}  number={NUMBER}")
     print(f"  compress   mean={c_mean:.1f} MB/s  stdev={c_std:.1f} MB/s")
     print(f"  decompress mean={d_mean:.1f} MB/s  stdev={d_std:.1f} MB/s")
+    print(f"  overall score  {math.sqrt(c_mean * d_mean):.1f}  (geometric mean of throughputs, higher is better)")
+
+    overall_score = round(math.sqrt(c_mean * d_mean), 2)
 
     result = [
         {
             "runs":                       repeat,
+            "overall_score":              overall_score,
+            "overall_score_better_when":  "higher",
             "compress_mbps_mean":         round(c_mean, 2),
             "compress_mbps_stdev":        round(c_std,  2),
             "compress_mbps_better_when":  "higher",
