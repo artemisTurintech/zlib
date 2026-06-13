@@ -33,12 +33,14 @@ def _mean(values):
 
 
 def _stdev(values):
+    if len(values) < 2:
+        return 0.0
     m = _mean(values)
     return math.sqrt(sum((v - m) ** 2 for v in values) / (len(values) - 1))
 
 
 def main():
-    repeat = 10
+    repeat = 1
     for i, arg in enumerate(sys.argv[1:]):
         if arg == "--runs" and i + 1 < len(sys.argv[1:]):
             repeat = int(sys.argv[i + 2])
